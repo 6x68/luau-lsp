@@ -6,6 +6,16 @@ option(LSP_BUILD_ASAN "Build with ASAN" OFF)
 option(LSP_STATIC_CRT "Link with the static CRT (/MT)" OFF)
 option(LSP_BUILD_WITH_SENTRY "Build with Sentry (crash reporting)" OFF)
 option(LSP_WERROR "Warnings as errors" ON)
+option(LSP_BUILD_WASM "Build WASM module for embedding via Emscripten" OFF)
+
+if(LSP_BUILD_WASM)
+    set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
+    set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LUAU_BUILD_WEB OFF CACHE BOOL "" FORCE)
+    set(LSP_BUILD_WITH_SENTRY OFF CACHE BOOL "" FORCE)
+    set(LSP_BUILD_ASAN OFF CACHE BOOL "" FORCE)
+    set(LSP_STATIC_CRT OFF CACHE BOOL "" FORCE)
+endif()
 
 set(LSP_VERSION "1.69.0")
 set(LSP_NAME "Luau")
@@ -42,6 +52,10 @@ add_subdirectory(luau)
 add_library(Luau.LanguageServer STATIC)
 add_executable(Luau.LanguageServer.CLI)
 add_executable(Luau.LanguageServer.Test)
+
+if(LSP_BUILD_WASM)
+    add_library(Luau.LanguageServer.WASM STATIC)
+endif()
 
 target_sources(Luau.LanguageServer PRIVATE
         src/LanguageServer.cpp
@@ -152,6 +166,71 @@ target_sources(Luau.LanguageServer.Test PRIVATE
         src/AnalyzeCli.cpp # For testing
 )
 
+if(LSP_BUILD_WASM)
+    target_sources(Luau.LanguageServer.WASM PRIVATE
+            src/LanguageServer.cpp
+            src/JsonRpc.cpp
+            src/Uri.cpp
+            src/WorkspaceFileResolver.cpp
+            src/Workspace.cpp
+            src/TextDocument.cpp
+            src/Client.cpp
+            src/DocumentationParser.cpp
+            src/LuauExt.cpp
+            src/LuauFileUtils.cpp
+            src/IostreamHelpers.cpp
+            src/Utils.cpp
+            src/Flags.cpp
+            src/Thread.cpp
+            src/JsonTomlSyntaxParser.cpp
+            src/CliConfigurationParser.cpp
+            src/platform/AutoImports.cpp
+            src/platform/LSPPlatform.cpp
+            src/platform/StringRequireAutoImporter.cpp
+            src/platform/StringRequireSuggester.cpp
+            src/platform/roblox/InstanceRequireAutoImporter.cpp
+            src/platform/roblox/RobloxCodeAction.cpp
+            src/platform/roblox/RobloxColorProvider.cpp
+            src/platform/roblox/RobloxCompletion.cpp
+            src/platform/roblox/RobloxFileResolver.cpp
+            src/platform/roblox/RobloxLanguageServer.cpp
+            src/platform/roblox/RobloxLuauExt.cpp
+            src/platform/roblox/RobloxSourcemap.cpp
+            src/platform/roblox/RobloxStringRequireSuggester.cpp
+            src/platform/roblox/RobloxSourceNode.cpp
+            src/platform/roblox/RobloxStudioPlugin.cpp
+            src/operations/Diagnostics.cpp
+            src/operations/Completion.cpp
+            src/operations/DocumentSymbol.cpp
+            src/operations/DocumentLink.cpp
+            src/operations/ColorProvider.cpp
+            src/operations/GotoDefinition.cpp
+            src/operations/Hover.cpp
+            src/operations/SignatureHelp.cpp
+            src/operations/References.cpp
+            src/operations/Rename.cpp
+            src/operations/InlayHints.cpp
+            src/operations/SemanticTokens.cpp
+            src/operations/CodeAction.cpp
+            src/operations/Refactoring.cpp
+            src/operations/WorkspaceSymbol.cpp
+            src/operations/FoldingRange.cpp
+            src/operations/CallHierarchy.cpp
+            src/operations/RequireGraph.cpp
+            src/operations/OnTypeFormatting.cpp
+            src/operations/Bytecode.cpp
+            src/transport/StdioTransport.cpp
+            src/Plugin/SourceMapping.cpp
+            src/Plugin/PluginTextDocument.cpp
+            src/Plugin/PluginRuntime.cpp
+            src/Plugin/PluginManager.cpp
+            src/Plugin/PluginLuaApi.cpp
+            src/Plugin/PluginDefinitions.cpp
+            extern/glob/match.cpp
+            src/WasmBindings.cpp
+    )
+endif()
+
 # TODO: Set Luau.Analysis at O2 to speed up debugging
 if (MSVC)
     list(APPEND LUAU_LSP_OPTIONS /W3 /D_CRT_SECURE_NO_WARNINGS /bigobj)
@@ -216,6 +295,38 @@ target_compile_options(Luau.LanguageServer.Test PRIVATE ${LUAU_LSP_OPTIONS})
 target_include_directories(Luau.LanguageServer.Test PRIVATE tests)
 target_include_directories(Luau.LanguageServer.Test SYSTEM PRIVATE ${EXTERN_INCLUDES} extern/doctest)
 target_link_libraries(Luau.LanguageServer.Test PRIVATE Luau.Ast Luau.Analysis Luau.LanguageServer)
+
+if(LSP_BUILD_WASM)
+    set(LUAU_WASM_OPTIONS -fexceptions -pthread)
+    list(APPEND LUAU_LSP_OPTIONS ${LUAU_WASM_OPTIONS})
+
+    target_compile_features(Luau.LanguageServer.WASM PUBLIC cxx_std_17)
+    target_compile_options(Luau.LanguageServer.WASM PRIVATE ${LUAU_LSP_OPTIONS})
+    target_compile_definitions(Luau.LanguageServer.WASM PUBLIC
+        LSP_VERSION="${LSP_VERSION}"
+        LSP_NAME="${LSP_NAME}"
+    )
+    target_include_directories(Luau.LanguageServer.WASM PUBLIC src/include)
+    target_include_directories(Luau.LanguageServer.WASM SYSTEM PUBLIC ${EXTERN_INCLUDES})
+    target_link_libraries(Luau.LanguageServer.WASM PRIVATE Luau.Ast Luau.Analysis Luau.Compiler Luau.VM)
+    target_link_libraries(Luau.LanguageServer.WASM PRIVATE pthread)
+
+    target_link_options(Luau.LanguageServer.WASM PRIVATE
+        -sMODULARIZE=1
+        -sEXPORTED_FUNCTIONS=["_lsp_init","_lsp_process_message","_lsp_push_message","_lsp_get_response","_lsp_shutdown","_lsp_register_callbacks","_malloc","_free"]
+        -sEXPORTED_RUNTIME_METHODS=["ccall","cwrap","UTF8ToString","stringToUTF8","allocateUTF8"]
+        -sALLOW_MEMORY_GROWTH=1
+        -sSINGLE_FILE=1
+        -sFORCE_FILESYSTEM=1
+        -fexceptions
+        -pthread
+    )
+
+    foreach(TARGET_NAME Luau.Ast Luau.Analysis Luau.Compiler Luau.VM)
+        target_compile_options(${TARGET_NAME} PRIVATE ${LUAU_WASM_OPTIONS})
+        target_link_options(${TARGET_NAME} PRIVATE -fexceptions -pthread)
+    endforeach()
+endif()
 
 if (LSP_BUILD_WITH_SENTRY)
     target_link_libraries(Luau.LanguageServer PRIVATE sentry)

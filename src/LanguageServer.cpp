@@ -30,12 +30,14 @@ LanguageServer::LanguageServer(LSPClient* aClient, std::optional<Luau::Config> a
     , defaultConfig(std::move(aDefaultConfig))
     , nullWorkspace(std::make_shared<WorkspaceFolder>(client, "$NULL_WORKSPACE", Uri(), defaultConfig))
 {
+#ifndef __EMSCRIPTEN__
     messageProcessorThread = Thread(
         [this]
         {
             while (auto message = popMessage())
                 handleMessage(*message);
         });
+#endif
 }
 
 /// Finds the workspace which the file belongs to.
@@ -613,6 +615,29 @@ std::optional<json_rpc::JsonRpcMessage> LanguageServer::popMessage()
 
 void LanguageServer::processInputLoop()
 {
+#ifdef __EMSCRIPTEN__
+    std::string jsonString;
+    while (auto message = popMessage())
+    {
+        if (message->is_request() && message->method == "shutdown")
+        {
+            shutdown();
+            client->sendResponse(message->id.value(), {});
+        }
+        else if (message->is_notification() && message->method == "exit")
+        {
+            break;
+        }
+        else if (shutdownRequested)
+        {
+            client->sendError(message->id, JsonRpcException(lsp::ErrorCode::InvalidRequest, "server is shutting down"));
+        }
+        else
+        {
+            handleMessage(*message);
+        }
+    }
+#else
     std::string jsonString;
     while (std::cin)
     {
@@ -667,6 +692,24 @@ void LanguageServer::processInputLoop()
             }
         }
     }
+#endif
+}
+
+void LanguageServer::pushMessage(const std::string& jsonString)
+{
+    try
+    {
+        auto msg = json_rpc::parse(jsonString);
+        std::unique_lock guard(messagesMutex);
+        if (msg.is_request())
+            cancellationTokens[msg.id.value()] = std::make_shared<Luau::FrontendCancellationToken>();
+        messages.push(std::move(msg));
+    }
+    catch (const json::exception& e)
+    {
+        client->sendError(std::nullopt, JsonRpcException(lsp::ErrorCode::ParseError, e.what()));
+    }
+    messagesCv.notify_one();
 }
 
 bool LanguageServer::requestedShutdown()

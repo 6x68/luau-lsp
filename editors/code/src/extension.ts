@@ -7,7 +7,6 @@ import {
   ErrorAction,
   ErrorHandler,
   ErrorHandlerResult,
-  Executable,
   LanguageClient,
   LanguageClientOptions,
   Message,
@@ -38,6 +37,8 @@ import {
   outputLocationForDocumentation,
   shouldFetchDefinitions,
 } from "./definitions";
+
+import { createServerOptions } from "./serverFactory";
 
 export type PlatformContext = { client: LanguageClient | undefined };
 export type AddArgCallback = (
@@ -405,32 +406,6 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
   const serverConfiguration =
     vscode.workspace.getConfiguration("luau-lsp.server");
 
-  const serverBinConfig = serverConfiguration.get("path", "").trim();
-  const serverBinUri =
-    vscode.workspace.workspaceFolders &&
-    vscode.workspace.workspaceFolders.length > 0
-      ? utils.resolveUri(
-          vscode.workspace.workspaceFolders[0].uri,
-          serverBinConfig,
-        )
-      : vscode.Uri.file(serverBinConfig);
-  let serverBinPath;
-
-  if (serverBinConfig !== "" && (await utils.exists(serverBinUri))) {
-    serverBinPath = serverBinUri.fsPath;
-  } else {
-    if (serverBinConfig !== "") {
-      vscode.window.showWarningMessage(
-        `Server binary at path \`${serverBinUri.fsPath}\` does not exist, falling back to bundled binary`,
-      );
-    }
-    serverBinPath = vscode.Uri.joinPath(
-      context.extensionUri,
-      "bin",
-      os.platform() === "win32" ? "server.exe" : "server",
-    ).fsPath;
-  }
-
   const transport =
     serverConfiguration.get<"stdio" | "pipe">(
       "communicationChannel",
@@ -483,22 +458,9 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
     }
   }
 
-  const run: Executable = {
-    command: serverBinPath,
-    args,
-    transport,
-  };
-
-  // If debugging, run the locally build extension, with local type definitions file
-  const debug: Executable = {
-    command: process.env["LUAU_LSP_SERVER_PATH"]
-      ? vscode.Uri.file(process.env["LUAU_LSP_SERVER_PATH"]).fsPath
-      : serverBinPath,
-    args: debugArgs,
-    transport,
-  };
-
-  const serverOptions: ServerOptions = { run, debug };
+  // Server options are now resolved by createServerOptions above
+  // The factory handles native binary, user-configured path, and WASM fallback
+  const serverOptions = await createServerOptions(context, args, debugArgs, transport);
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
