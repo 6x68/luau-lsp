@@ -171,9 +171,14 @@ function registerCallbacks(): void {
 
 async function initWasm(): Promise<boolean> {
   try {
-    // @ts-ignore - bin/server.js is a build artifact produced by Emscripten
-    const moduleLoader = await import("../bin/server.js");
-    wasmModule = await moduleLoader.default();
+    const url = wasmModuleUrl ?? "../bin/server.js";
+    // Load the Emscripten module via importScripts (classic worker).
+    // esbuild transforms bare importScripts() calls, so we obscure it.
+    // @ts-ignore
+    const loadScripts: (url: string) => void = self["importScripts"];
+    loadScripts(url);
+    // @ts-ignore - Emscripten MODULARIZE sets Module as a global factory
+    wasmModule = await Module();
 
     registerCallbacks();
     wasmModule.lsp_init();
@@ -203,9 +208,16 @@ function processJsonRpc(jsonMessage: string): string | null {
 }
 
 let initPromise: Promise<boolean> | null = null;
+let wasmModuleUrl: string | null = null;
 
 self.onmessage = async (event: MessageEvent) => {
   const data = event.data;
+
+  // Receive the WASM module blob URL from the main extension
+  if (data.type === "load-wasm") {
+    wasmModuleUrl = data.url;
+    return;
+  }
 
   // Handle file loading messages from the main extension
   if (data.type === "load-files") {

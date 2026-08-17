@@ -148,9 +148,16 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
   }
 
   // Create the WASM web worker
-  const worker = new Worker(new URL("./wasmWorker.ts", import.meta.url), {
-    type: "module",
-  });
+  const workerScriptUri = vscode.Uri.joinPath(context.extensionUri, "dist", "wasmWorker.js");
+  const worker = new Worker(workerScriptUri.toString());
+
+  // Read the WASM module and pass it as a blob URL to the worker.
+  // The worker can't resolve relative paths under vscode-web:// scheme,
+  // so we provide the module content directly.
+  const wasmModuleUri = vscode.Uri.joinPath(context.extensionUri, "bin", "server.js");
+  const wasmBytes = await vscode.workspace.fs.readFile(wasmModuleUri);
+  const wasmBlob = new Blob([wasmBytes], { type: "application/javascript" });
+  const wasmBlobUrl = URL.createObjectURL(wasmBlob);
 
   // Pre-load workspace files into the worker's file cache before LSP starts.
   // The WASM server needs synchronous file I/O for module resolution and .luaurc,
@@ -212,7 +219,10 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
       const workspaceRoot =
         vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "/";
 
-      // Send files to worker and wait for confirmation
+      // Send WASM module URL to worker first
+  worker.postMessage({ type: "load-wasm", url: wasmBlobUrl });
+
+  // Send files to worker and wait for confirmation
       const filesLoaded = new Promise<void>((resolve) => {
         const handler = (event: MessageEvent) => {
           if (event.data?.type === "files-loaded") {

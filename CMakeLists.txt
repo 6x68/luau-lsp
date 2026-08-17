@@ -316,6 +316,7 @@ if(LSP_BUILD_WASM)
         -sEXPORTED_FUNCTIONS=["_lsp_init","_lsp_process_message","_lsp_push_message","_lsp_get_response","_lsp_shutdown","_lsp_register_callbacks","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["ccall","cwrap","addFunction","removeFunction","UTF8ToString","stringToUTF8"]
         -sALLOW_MEMORY_GROWTH=1
+        -sALLOW_TABLE_GROWTH=1
         -sSINGLE_FILE=1
         -sFORCE_FILESYSTEM=1
         -fexceptions
