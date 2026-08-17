@@ -54,7 +54,7 @@ add_executable(Luau.LanguageServer.CLI)
 add_executable(Luau.LanguageServer.Test)
 
 if(LSP_BUILD_WASM)
-    add_library(Luau.LanguageServer.WASM STATIC)
+    add_executable(Luau.LanguageServer.WASM)
 endif()
 
 target_sources(Luau.LanguageServer PRIVATE
@@ -312,6 +312,7 @@ if(LSP_BUILD_WASM)
     target_link_libraries(Luau.LanguageServer.WASM PRIVATE pthread)
 
     target_link_options(Luau.LanguageServer.WASM PRIVATE
+        --no-entry
         -sMODULARIZE=1
         -sEXPORTED_FUNCTIONS=["_lsp_init","_lsp_process_message","_lsp_push_message","_lsp_get_response","_lsp_shutdown","_lsp_register_callbacks","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["ccall","cwrap","addFunction","removeFunction","UTF8ToString","stringToUTF8","allocateUTF8"]
