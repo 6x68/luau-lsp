@@ -32,7 +32,6 @@
     "workspaceContains:**/*.luau"
   ],
   "main": "./dist/extension.js",
-  "browser": "./dist/extension.browser.js",
   "contributes": {
     "languages": [
       {

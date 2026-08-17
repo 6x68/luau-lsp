@@ -3,8 +3,7 @@ import * as esbuild from "esbuild";
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
-// Node.js build (desktop)
-const nodeCtx = await esbuild.context({
+const ctx = await esbuild.context({
   entryPoints: ["src/extension.ts"],
   bundle: true,
   format: "cjs",
@@ -38,70 +37,9 @@ const nodeCtx = await esbuild.context({
   ],
 });
 
-// Browser build (web VSCode)
-const browserCtx = await esbuild.context({
-  entryPoints: ["src/extension.ts"],
-  bundle: true,
-  format: "cjs",
-  minify: production,
-  sourcemap: !production,
-  sourcesContent: false,
-  platform: "browser",
-  outfile: "dist/extension.browser.js",
-  external: [
-    "vscode",
-    "os",
-    "path",
-    "fs",
-    "child_process",
-    "util",
-    "events",
-    "net",
-    "http",
-    "https",
-    "stream",
-    "crypto",
-    "assert",
-    "buffer",
-    "url",
-    "zlib",
-    "undici",
-    "node:*",
-  ],
-  logLevel: "warning",
-  define: {
-    "process.env": "{}",
-    global: "globalThis",
-  },
-  plugins: [
-    {
-      name: "esbuild-problem-matcher",
-      setup(build) {
-        build.onStart(() => {
-          console.log("[watch] browser build started");
-        });
-        build.onEnd((result) => {
-          for (const { text, location } of result.errors) {
-            console.error(
-              `✘ [ERROR] ${text}`,
-              location
-                ? `${location.file}:${location.line}:${location.column}:`
-                : "",
-            );
-          }
-          console.log("[watch] browser build finished");
-        });
-      },
-    },
-  ],
-});
-
 if (watch) {
-  await nodeCtx.watch();
-  await browserCtx.watch();
+  await ctx.watch();
 } else {
-  await nodeCtx.rebuild();
-  await nodeCtx.dispose();
-  await browserCtx.rebuild();
-  await browserCtx.dispose();
+  await ctx.rebuild();
+  await ctx.dispose();
 }
