@@ -154,6 +154,7 @@ namespace Luau::FileUtils
             if (result)
             {
                 std::string content(result);
+                free(const_cast<char*>(result));
                 return content;
             }
         }
@@ -189,6 +190,7 @@ namespace Luau::FileUtils
             if (result)
             {
                 std::string dirListStr(result);
+                free(const_cast<char*>(result));
                 size_t start = 0;
                 while (start < dirListStr.size())
                 {
@@ -216,7 +218,11 @@ namespace Luau::FileUtils
         {
             const char* result = s_getCurrentDirectory();
             if (result)
-                return std::string(result);
+            {
+                std::string cwd(result);
+                free(const_cast<char*>(result));
+                return cwd;
+            }
         }
         return std::nullopt;
     }
