@@ -297,7 +297,7 @@ target_include_directories(Luau.LanguageServer.Test SYSTEM PRIVATE ${EXTERN_INCL
 target_link_libraries(Luau.LanguageServer.Test PRIVATE Luau.Ast Luau.Analysis Luau.LanguageServer)
 
 if(LSP_BUILD_WASM)
-    set(LUAU_WASM_OPTIONS -fexceptions -pthread -Wno-unused-template)
+    set(LUAU_WASM_OPTIONS -fexceptions -Wno-unused-template)
     list(APPEND LUAU_LSP_OPTIONS ${LUAU_WASM_OPTIONS})
 
     target_compile_features(Luau.LanguageServer.WASM PUBLIC cxx_std_17)
@@ -309,7 +309,6 @@ if(LSP_BUILD_WASM)
     target_include_directories(Luau.LanguageServer.WASM PUBLIC src/include)
     target_include_directories(Luau.LanguageServer.WASM SYSTEM PUBLIC ${EXTERN_INCLUDES})
     target_link_libraries(Luau.LanguageServer.WASM PRIVATE Luau.Ast Luau.Analysis Luau.Compiler Luau.VM)
-    target_link_libraries(Luau.LanguageServer.WASM PRIVATE pthread)
 
     target_link_options(Luau.LanguageServer.WASM PRIVATE
         --no-entry
@@ -320,12 +319,11 @@ if(LSP_BUILD_WASM)
         -sSINGLE_FILE=1
         -sFORCE_FILESYSTEM=1
         -fexceptions
-        -pthread
     )
 
     foreach(TARGET_NAME Luau.Ast Luau.Analysis Luau.Compiler Luau.VM)
         target_compile_options(${TARGET_NAME} PRIVATE ${LUAU_WASM_OPTIONS})
-        target_link_options(${TARGET_NAME} PRIVATE -fexceptions -pthread)
+        target_link_options(${TARGET_NAME} PRIVATE -fexceptions)
     endforeach()
 endif()
 
