@@ -27,8 +27,6 @@ static WasmIsFileCallback s_isFile = nullptr;
 static WasmIsDirectoryCallback s_isDirectory = nullptr;
 static WasmDirListCallback s_dirList = nullptr;
 static WasmGetCurrentDirectoryCallback s_getCurrentDirectory = nullptr;
-static WasmHttpFetchCallback s_httpFetch = nullptr;
-static WasmCommandCallback s_command = nullptr;
 
 static std::unique_ptr<WasmTransport> s_transport;
 static std::unique_ptr<LSPClient> s_client;
@@ -60,8 +58,8 @@ extern "C"
         s_isDirectory = isDirectory;
         s_dirList = dirList;
         s_getCurrentDirectory = getCurrentDirectory;
-        s_httpFetch = httpFetch;
-        s_command = command;
+        (void)httpFetch;
+        (void)command;
     }
 
     EMSCRIPTEN_KEEPALIVE int lsp_init()
