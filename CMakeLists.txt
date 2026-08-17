@@ -177,6 +177,7 @@ if(LSP_BUILD_WASM)
             src/Client.cpp
             src/DocumentationParser.cpp
             src/LuauExt.cpp
+            src/LuauFileUtils.cpp
             src/IostreamHelpers.cpp
             src/Utils.cpp
             src/Flags.cpp
