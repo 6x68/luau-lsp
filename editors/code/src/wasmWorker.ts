@@ -172,9 +172,14 @@ function registerCallbacks(): void {
 async function initWasm(): Promise<boolean> {
   try {
     const url = wasmModuleUrl ?? "../bin/server.js";
-    // @ts-ignore - dynamic import of Emscripten ES module build artifact
-    const moduleLoader = await import(url);
-    wasmModule = await moduleLoader.default();
+
+    // @ts-ignore
+    const loadScripts: (url: string) => void = self["importScripts"];
+    loadScripts(url);
+
+    // Calling it returns a Promise<WasmModule>.
+    // @ts-ignore - Emscripten MODULARIZE global
+    wasmModule = await Module();
 
     registerCallbacks();
     wasmModule.lsp_init();
