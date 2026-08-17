@@ -81,6 +81,7 @@ bool isAbsolutePath(std::string_view path)
 #endif
 }
 
+#ifndef __EMSCRIPTEN__
 std::optional<std::string> readFile(const std::string& name)
 {
 #ifdef _WIN32
