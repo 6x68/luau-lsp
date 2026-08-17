@@ -58,8 +58,12 @@ export function createNodeCallbacks(): WasmCallbacks {
       // This synchronous fallback is only for non-worker contexts
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { execSync } = require("child_process") as typeof import("child_process");
-        return execSync(`curl -s "${url}"`, { encoding: "utf-8", timeout: 10000 });
+        const { execSync } =
+          require("child_process") as typeof import("child_process");
+        return execSync(`curl -s "${url}"`, {
+          encoding: "utf-8",
+          timeout: 10000,
+        });
       } catch {
         return null;
       }
@@ -67,7 +71,8 @@ export function createNodeCallbacks(): WasmCallbacks {
     command(cmd: string): string | null {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { execSync } = require("child_process") as typeof import("child_process");
+        const { execSync } =
+          require("child_process") as typeof import("child_process");
         return execSync(cmd, { encoding: "utf-8", timeout: 30000 });
       } catch {
         return null;

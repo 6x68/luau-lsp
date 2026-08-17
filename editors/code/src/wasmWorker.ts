@@ -10,7 +10,8 @@ declare function acquireVsCodeApi(): {
   setState(state: unknown): void;
 };
 
-const vscodeApi = typeof acquireVsCodeApi !== "undefined" ? acquireVsCodeApi() : null;
+const vscodeApi =
+  typeof acquireVsCodeApi !== "undefined" ? acquireVsCodeApi() : null;
 
 interface WasmModule {
   lsp_init(): number;
@@ -116,7 +117,11 @@ self.onmessage = async (event: MessageEvent) => {
     }
     case "message": {
       if (!wasmModule) {
-        self.postMessage({ type: "error", id, error: "WASM module not initialized" });
+        self.postMessage({
+          type: "error",
+          id,
+          error: "WASM module not initialized",
+        });
         break;
       }
       try {

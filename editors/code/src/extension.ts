@@ -460,7 +460,12 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
 
   // Server options are now resolved by createServerOptions above
   // The factory handles native binary, user-configured path, and WASM fallback
-  const serverOptions = await createServerOptions(context, args, debugArgs, transport);
+  const serverOptions = await createServerOptions(
+    context,
+    args,
+    debugArgs,
+    transport,
+  );
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
