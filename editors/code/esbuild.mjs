@@ -52,7 +52,7 @@ const browserCtx = await esbuild.context({
   logLevel: "warning",
   define: {
     "process.env": "{}",
-    "global": "globalThis",
+    global: "globalThis",
   },
   plugins: [
     {

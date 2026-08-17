@@ -6,9 +6,7 @@
   ],
   "name": "Luau",
   "scopeName": "source.luau",
-  "fileTypes": [
-    "luau"
-  ],
+  "fileTypes": ["luau"],
   "patterns": [
     {
       "include": "#function-definition"

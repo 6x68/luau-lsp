@@ -22,7 +22,7 @@ export async function createServerOptions(
   context: vscode.ExtensionContext,
   args: string[],
   debugArgs: string[],
-  transport: typeof TransportKind[keyof typeof TransportKind] = TransportKind.stdio,
+  transport: (typeof TransportKind)[keyof typeof TransportKind] = TransportKind.stdio,
 ): Promise<ServerOptions> {
   const serverConfiguration =
     vscode.workspace.getConfiguration("luau-lsp.server");
@@ -40,7 +40,12 @@ export async function createServerOptions(
         : vscode.Uri.file(serverBinConfig);
 
     if (await utils.exists(serverBinUri)) {
-      return createNativeServerOptions(serverBinUri.fsPath, args, debugArgs, transport);
+      return createNativeServerOptions(
+        serverBinUri.fsPath,
+        args,
+        debugArgs,
+        transport,
+      );
     } else {
       vscode.window.showWarningMessage(
         `Server binary at path \`${serverBinUri.fsPath}\` does not exist, falling back to bundled binary`,
@@ -72,7 +77,7 @@ function createNativeServerOptions(
   binPath: string,
   args: string[],
   debugArgs: string[],
-  transport: typeof TransportKind[keyof typeof TransportKind],
+  transport: (typeof TransportKind)[keyof typeof TransportKind],
 ): ServerOptions {
   const run: Executable = {
     command: binPath,
@@ -96,7 +101,11 @@ function createWasmServerOptions(
   args: string[],
   debugArgs: string[],
 ): ServerOptions {
-  const wasmPath = vscode.Uri.joinPath(context.extensionUri, "bin", "server.js");
+  const wasmPath = vscode.Uri.joinPath(
+    context.extensionUri,
+    "bin",
+    "server.js",
+  );
 
   const run: Executable = {
     command: "node",
