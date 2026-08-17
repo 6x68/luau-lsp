@@ -82,6 +82,11 @@ jobs:
             artifact-name: luau-lsp-macos
             code-target: [darwin-x64, darwin-arm64]
             crash-reporting: true
+          - os: ubuntu-22.04
+            artifact-name: luau-lsp-wasm
+            code-target: []
+            crash-reporting: false
+            build-wasm: true
 
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -97,10 +102,24 @@ jobs:
           node-version: 20
 
       - name: Build Server
+        if: ${{ !matrix.build-wasm }}
         run: |
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DLSP_STATIC_CRT:BOOL=ON -DLSP_BUILD_WITH_SENTRY:BOOL=${{ matrix.crash-reporting }}
           cmake --build . --config RelWithDebInfo --target Luau.LanguageServer.CLI -j 3
+
+      - name: Setup Emscripten
+        if: ${{ matrix.build-wasm }}
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Build WASM
+        if: ${{ matrix.build-wasm }}
+        run: |
+          mkdir build && cd build
+          emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -DLSP_BUILD_WASM:BOOL=ON
+          cmake --build . --config Release --target Luau.LanguageServer.WASM -j 3
 
       - name: (MacOS) Verify universal build
         if: matrix.os == 'macos-latest'
@@ -119,7 +138,13 @@ jobs:
         run: |
           mkdir -p ./dist
           mkdir -p editors/code/bin
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ matrix.build-wasm }}" = "true" ]; then
+            cp build/Luau.LanguageServer.WASM.js editors/code/bin/server.js
+            # If separate .wasm file exists, copy it too
+            if [ -f build/Luau.LanguageServer.WASM.wasm ]; then
+              cp build/Luau.LanguageServer.WASM.wasm editors/code/bin/server.wasm
+            fi
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp build/RelWithDebInfo/luau-lsp.exe editors/code/bin/server.exe
           else
             cp build/luau-lsp editors/code/bin/server
@@ -128,7 +153,7 @@ jobs:
 
       - name: Copy Crashpad Handler into Extension
         shell: bash
-        if: matrix.crash-reporting == true
+        if: matrix.crash-reporting == true && !matrix.build-wasm
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
               cp build/RelWithDebInfo/crashpad_handler.exe editors/code/bin/crashpad_handler.exe
@@ -139,7 +164,7 @@ jobs:
 
       - name: Setup Sentry CLI
         uses: matbour/setup-sentry-cli@v2
-        if: matrix.crash-reporting == true
+        if: matrix.crash-reporting == true && !matrix.build-wasm
         with:
           token: ${{ secrets.SENTRY_AUTH_TOKEN }}
           organization: luau-lsp
@@ -147,7 +172,7 @@ jobs:
 
       - name: Upload debug symbols
         shell: bash
-        if: matrix.crash-reporting == true
+        if: matrix.crash-reporting == true && !matrix.build-wasm
         run: |
           rm -rf build/_deps
           sentry-cli debug-files upload --include-sources build
@@ -156,7 +181,14 @@ jobs:
         shell: bash
         run: |
           mkdir staging
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ matrix.build-wasm }}" = "true" ]; then
+            cp build/Luau.LanguageServer.WASM.js staging/
+            if [ -f build/Luau.LanguageServer.WASM.wasm ]; then
+              cp build/Luau.LanguageServer.WASM.wasm staging/
+            fi
+            cd staging
+            zip ../dist/server.zip *
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp "build/RelWithDebInfo/luau-lsp.exe" staging/
             cd staging
             7z a ../dist/server.zip *
@@ -193,12 +225,15 @@ jobs:
           asset_content_type: application/octet-stream
 
       - run: npm ci
+        if: ${{ !matrix.build-wasm }}
         working-directory: editors/code
 
       - name: Publish Extension
+        if: ${{ !matrix.build-wasm }}
         working-directory: editors/code
         run: npx @vscode/vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --target ${{ join(matrix.code-target, ' ') }}
 
       - name: Publish OpenVSX Extension
+        if: ${{ !matrix.build-wasm }}
         working-directory: editors/code
         run: npx ovsx publish --pat ${{ secrets.OVSX_TOKEN }} --target ${{ join(matrix.code-target, ' ') }}

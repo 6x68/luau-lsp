@@ -58,6 +58,7 @@ public:
     void onRequest(const id_type& id, const std::string& method, std::optional<json> params);
     void onNotification(const std::string& method, std::optional<json> params);
     void processInputLoop();
+    void pushMessage(const std::string& jsonString);
     bool requestedShutdown();
 
     // Visible for testing only

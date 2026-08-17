@@ -1,4 +1,7 @@
+#ifndef __EMSCRIPTEN__
 #include "../../luau/CodeGen/include/Luau/CodeGen.h"
+#endif
+
 #include "LSP/Workspace.hpp"
 #include "Luau/BytecodeBuilder.h"
 #include "Luau/Parser.h"
@@ -7,11 +10,7 @@
 #include "lua.h"
 #include "lualib.h"
 
-static std::string constructError(const std::string& type, const Luau::Location& location, const std::string& message)
-{
-    return type + "(" + std::to_string(location.begin.line + 1) + "," + std::to_string(location.begin.column + 1) + "): " + message + "\n";
-}
-
+#ifndef __EMSCRIPTEN__
 static std::string getCodegenAssembly(
     const char* name,
     const std::string& bytecode,
@@ -32,6 +31,31 @@ static void annotateInstruction(void* context, std::string& text, int fid, int i
     Luau::BytecodeBuilder& bcb = *(Luau::BytecodeBuilder*)context;
 
     bcb.annotateInstruction(text, fid, instpos);
+}
+
+static Luau::CodeGen::AssemblyOptions::Target getCodeGenTarget(const lsp::CodeGenTarget& codeGenTarget)
+{
+    switch (codeGenTarget)
+    {
+    case lsp::CodeGenTarget::Host:
+        return Luau::CodeGen::AssemblyOptions::Target::Host;
+    case lsp::CodeGenTarget::A64:
+        return Luau::CodeGen::AssemblyOptions::Target::A64;
+    case lsp::CodeGenTarget::A64_NoFeatures:
+        return Luau::CodeGen::AssemblyOptions::Target::A64_NoFeatures;
+    case lsp::CodeGenTarget::X64_Windows:
+        return Luau::CodeGen::AssemblyOptions::Target::X64_Windows;
+    case lsp::CodeGenTarget::X64_SystemV:
+        return Luau::CodeGen::AssemblyOptions::Target::X64_SystemV;
+    }
+
+    return Luau::CodeGen::AssemblyOptions::Target::Host;
+}
+#endif
+
+static std::string constructError(const std::string& type, const Luau::Location& location, const std::string& message)
+{
+    return type + "(" + std::to_string(location.begin.line + 1) + "," + std::to_string(location.begin.column + 1) + "): " + message + "\n";
 }
 
 enum class BytecodeOutputType
@@ -55,25 +79,6 @@ static uint32_t flagsForType(BytecodeOutputType type)
             Luau::BytecodeBuilder::Dump_Remarks;
     }
     return 0;
-}
-
-static Luau::CodeGen::AssemblyOptions::Target getCodeGenTarget(const lsp::CodeGenTarget& codeGenTarget)
-{
-    switch (codeGenTarget)
-    {
-    case lsp::CodeGenTarget::Host:
-        return Luau::CodeGen::AssemblyOptions::Target::Host;
-    case lsp::CodeGenTarget::A64:
-        return Luau::CodeGen::AssemblyOptions::Target::A64;
-    case lsp::CodeGenTarget::A64_NoFeatures:
-        return Luau::CodeGen::AssemblyOptions::Target::A64_NoFeatures;
-    case lsp::CodeGenTarget::X64_Windows:
-        return Luau::CodeGen::AssemblyOptions::Target::X64_Windows;
-    case lsp::CodeGenTarget::X64_SystemV:
-        return Luau::CodeGen::AssemblyOptions::Target::X64_SystemV;
-    }
-
-    return Luau::CodeGen::AssemblyOptions::Target::Host;
 }
 
 static std::string computeBytecodeOutput(const Luau::ModuleName& moduleName, const std::string& source, const ClientConfiguration& config,
@@ -104,6 +109,9 @@ static std::string computeBytecodeOutput(const Luau::ModuleName& moduleName, con
 
         if (type == BytecodeOutputType::CodeGen)
         {
+#ifdef __EMSCRIPTEN__
+            return bcb.dumpEverything();
+#else
             Luau::CodeGen::AssemblyOptions assemblyOptions;
             assemblyOptions.target = getCodeGenTarget(codeGenTarget);
             assemblyOptions.outputBinary = false;
@@ -114,6 +122,7 @@ static std::string computeBytecodeOutput(const Luau::ModuleName& moduleName, con
             assemblyOptions.annotator = annotateInstruction;
             assemblyOptions.annotatorContext = &bcb;
             return getCodegenAssembly(moduleName.c_str(), bcb.getBytecode(), assemblyOptions);
+#endif
         }
         else if (type == BytecodeOutputType::Textual)
             return bcb.dumpEverything();

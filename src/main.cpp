@@ -9,7 +9,7 @@
 #include "LSP/RequireGraph.hpp"
 
 #include "LSP/Transport/StdioTransport.hpp"
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #include "LSP/Transport/PipeTransport.hpp"
 #endif
 
@@ -121,6 +121,9 @@ int startLanguageServer(const argparse::ArgumentParser& program)
         }
 #ifdef _WIN32
         std::cerr << "--pipe is not supported on windows\n";
+        return 1;
+#elif defined(__EMSCRIPTEN__)
+        std::cerr << "--pipe is not supported in WASM builds\n";
         return 1;
 #else
         transport = std::make_unique<PipeTransport>(*transportPipeFile);

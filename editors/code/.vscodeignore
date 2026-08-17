@@ -15,3 +15,5 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
+!bin/server.js
+!bin/server.wasm
