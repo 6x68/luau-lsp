@@ -37,7 +37,11 @@ export const ComputeCompilerRemarksRequest = new RequestType<
 >("luau-lsp/compilerRemarks");
 
 export type CodeGenTarget =
-  "host" | "a64" | "a64_nofeatures" | "x64_windows" | "x64_systemv";
+  | "host"
+  | "a64"
+  | "a64_nofeatures"
+  | "x64_windows"
+  | "x64_systemv";
 
 export type CodeGenParams = {
   textDocument: TextDocumentIdentifier;

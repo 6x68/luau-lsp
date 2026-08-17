@@ -42,12 +42,12 @@ const nodeCtx = await esbuild.context({
 const browserCtx = await esbuild.context({
   entryPoints: ["src/extension.browser.ts"],
   bundle: true,
-  format: "cjs",
+  format: "esm",
   minify: production,
   sourcemap: !production,
   sourcesContent: false,
   platform: "browser",
-  outfile: "dist/extension.browser.js",
+  outfile: "dist/extension.browser.mjs",
   external: ["vscode", "vscode-languageclient", "vscode-languageclient/*"],
   logLevel: "warning",
   define: {
