@@ -1,136 +1,238 @@
 /// <reference lib="webworker" />
-import { WasmCallbacks, createBrowserCallbacks } from "./wasmCallbacks";
 
-// This file is the entry point for the WASM worker in browser context.
-// It loads the WASM module and communicates with the main extension via postMessage.
+// WASM web worker for the browser extension.
+// Speaks JSON-RPC over postMessage for vscode-languageclient/browser.
+// File I/O is served from a pre-loaded cache populated by the main extension.
 
-declare function acquireVsCodeApi(): {
-  postMessage(message: unknown): void;
-  getState(): unknown;
-  setState(state: unknown): void;
-};
+// Emscripten module - no typings available.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let wasmModule: any = null;
 
-interface WasmModule {
-  lsp_init(): number;
-  lsp_process_message(ptr: number): number;
-  lsp_push_message(ptr: number): void;
-  lsp_get_response(): number;
-  lsp_shutdown(): void;
-  lsp_register_callbacks(
-    readFile: number,
-    fileExists: number,
-    isFile: number,
-    isDirectory: number,
-    dirList: number,
-    getCurrentDirectory: number,
-    httpFetch: number,
-    command: number,
-  ): void;
-  _malloc(size: number): number;
-  _free(ptr: number): void;
-  UTF8ToString(ptr: number): string;
-  stringToUTF8(str: string, ptr: number, maxBytes: number): void;
-  ccall(
-    ident: string,
-    returnType: string | null,
-    argTypes: string[],
-    args: unknown[],
-  ): unknown;
+// ---- File cache ----
+const fileCache = new Map<string, string>();
+let workspaceRoot = "/";
+
+function normalizePath(p: string): string {
+  // Normalize separators and remove trailing slash
+  return p.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
-let wasmModule: WasmModule | null = null;
-let callbacks: WasmCallbacks | null = null;
+// ---- JS callback implementations (plain functions, no closures for addFunction) ----
 
-function allocateString(str: string): number {
+function jsReadFile(pathPtr: number): number {
   if (!wasmModule) return 0;
-  const len = str.length * 3 + 1; // UTF-8 max 3 bytes per char
+  const path = wasmModule.UTF8ToString(pathPtr);
+  const content = fileCache.get(normalizePath(path));
+  if (content === undefined) return 0;
+  const len = content.length * 3 + 1;
   const ptr = wasmModule._malloc(len);
-  wasmModule.stringToUTF8(str, ptr, len);
+  wasmModule.stringToUTF8(content, ptr, len);
   return ptr;
 }
 
-function readString(ptr: number): string {
-  if (!wasmModule || ptr === 0) return "";
-  return wasmModule.UTF8ToString(ptr);
+function jsFileExists(pathPtr: number): number {
+  if (!wasmModule) return 0;
+  const path = wasmModule.UTF8ToString(pathPtr);
+  return fileCache.has(normalizePath(path)) ? 1 : 0;
+}
+
+function jsIsFile(pathPtr: number): number {
+  if (!wasmModule) return 0;
+  const path = wasmModule.UTF8ToString(pathPtr);
+  // A path is a file if it's in the cache and doesn't end with /
+  const normalized = normalizePath(path);
+  if (fileCache.has(normalized)) return 1;
+  // Also check if any cached file starts with this path (it's a directory prefix)
+  for (const key of fileCache.keys()) {
+    if (key.startsWith(normalized + "/")) return 0;
+  }
+  return 0;
+}
+
+function jsIsDirectory(pathPtr: number): number {
+  if (!wasmModule) return 0;
+  const path = wasmModule.UTF8ToString(pathPtr);
+  const normalized = normalizePath(path);
+  if (normalized === workspaceRoot || normalized === "") return 1;
+  // A path is a directory if any cached file starts with it
+  for (const key of fileCache.keys()) {
+    if (key.startsWith(normalized + "/")) return 1;
+  }
+  return 0;
+}
+
+function jsDirList(pathPtr: number): number {
+  if (!wasmModule) return 0;
+  const dirPath = wasmModule.UTF8ToString(pathPtr);
+  const normalized = normalizePath(dirPath);
+  const prefix = normalized === "" ? "" : normalized + "/";
+
+  const entries = new Set<string>();
+  for (const key of fileCache.keys()) {
+    if (key.startsWith(prefix)) {
+      const rest = key.slice(prefix.length);
+      const firstSegment = rest.split("/")[0];
+      if (firstSegment) entries.add(firstSegment);
+    }
+  }
+
+  if (entries.size === 0) return 0;
+
+  const result = Array.from(entries).join("\n");
+  const len = result.length * 3 + 1;
+  const ptr = wasmModule._malloc(len);
+  wasmModule.stringToUTF8(result, ptr, len);
+  return ptr;
+}
+
+function jsGetCurrentDirectory(): number {
+  if (!wasmModule) return 0;
+  const len = workspaceRoot.length * 3 + 1;
+  const ptr = wasmModule._malloc(len);
+  wasmModule.stringToUTF8(workspaceRoot, ptr, len);
+  return ptr;
+}
+
+function jsHttpFetch(_urlPtr: number): number {
+  // HTTP fetch is not available synchronously in a web worker.
+  // The WASM server will handle this gracefully (returns empty).
+  return 0;
+}
+
+function jsCommand(_cmdPtr: number): number {
+  // Shell commands are not available in browser.
+  return 0;
+}
+
+// ---- WASM initialization ----
+
+function registerCallbacks(): void {
+  // Emscripten addFunction signature: "ii" = (i32) -> i32, "i" = () -> i32
+  const readFilePtr = wasmModule.addFunction(jsReadFile, "ii");
+  const fileExistsPtr = wasmModule.addFunction(jsFileExists, "ii");
+  const isFilePtr = wasmModule.addFunction(jsIsFile, "ii");
+  const isDirectoryPtr = wasmModule.addFunction(jsIsDirectory, "ii");
+  const dirListPtr = wasmModule.addFunction(jsDirList, "ii");
+  const getCurrentDirPtr = wasmModule.addFunction(jsGetCurrentDirectory, "i");
+  const httpFetchPtr = wasmModule.addFunction(jsHttpFetch, "ii");
+  const commandPtr = wasmModule.addFunction(jsCommand, "ii");
+
+  wasmModule.ccall(
+    "lsp_register_callbacks",
+    null,
+    [
+      "number",
+      "number",
+      "number",
+      "number",
+      "number",
+      "number",
+      "number",
+      "number",
+    ],
+    [
+      readFilePtr,
+      fileExistsPtr,
+      isFilePtr,
+      isDirectoryPtr,
+      dirListPtr,
+      getCurrentDirPtr,
+      httpFetchPtr,
+      commandPtr,
+    ],
+  );
 }
 
 async function initWasm(): Promise<boolean> {
   try {
-    // Import the WASM module (generated by Emscripten)
     // @ts-ignore - bin/server.js is a build artifact produced by Emscripten
     const moduleLoader = await import("../bin/server.js");
-    wasmModule = (await moduleLoader.default()) as unknown as WasmModule;
+    wasmModule = await moduleLoader.default();
 
-    callbacks = createBrowserCallbacks();
+    registerCallbacks();
+    wasmModule.lsp_init();
 
-    // Register callbacks with the WASM module
-    if (wasmModule && typeof wasmModule.ccall === "function") {
-      // TODO: Properly wrap JS callbacks as C function pointers using addFunction
-      wasmModule.ccall("lsp_register_callbacks", null, [], []);
-    }
-
-    // Initialize the LSP server
-    const result = wasmModule!.lsp_init();
-    return result === 0;
+    return true;
   } catch (error) {
     console.error("Failed to initialize WASM module:", error);
     return false;
   }
 }
 
-function processMessage(message: string): string {
-  if (!wasmModule) return "";
+// ---- Message handling ----
 
-  const msgPtr = allocateString(message);
+function processJsonRpc(jsonMessage: string): string | null {
+  const msgPtr = wasmModule._malloc(jsonMessage.length * 3 + 1);
+  wasmModule.stringToUTF8(jsonMessage, msgPtr, jsonMessage.length * 3 + 1);
   const responsePtr = wasmModule.lsp_process_message(msgPtr);
-  const response = readString(responsePtr);
 
-  wasmModule._free(msgPtr);
+  let response: string | null = null;
   if (responsePtr !== 0) {
+    response = wasmModule.UTF8ToString(responsePtr);
     wasmModule._free(responsePtr);
   }
+  wasmModule._free(msgPtr);
 
   return response;
 }
 
-// Handle messages from the main extension
-self.onmessage = async (event: MessageEvent) => {
-  const { type, id, message } = event.data;
+let initPromise: Promise<boolean> | null = null;
 
-  switch (type) {
-    case "init": {
-      const success = await initWasm();
-      self.postMessage({ type: "init-result", success });
-      break;
+self.onmessage = async (event: MessageEvent) => {
+  const data = event.data;
+
+  // Handle file loading messages from the main extension
+  if (data.type === "load-files") {
+    workspaceRoot = data.workspaceRoot ?? "/";
+
+    for (const [path, content] of Object.entries(
+      data.files as Record<string, string>,
+    )) {
+      fileCache.set(normalizePath(path), content);
     }
-    case "message": {
-      if (!wasmModule) {
-        self.postMessage({
-          type: "error",
-          id,
-          error: "WASM module not initialized",
-        });
-        break;
+
+    // Signal that files are loaded and WASM can now initialize
+    if (!initPromise) {
+      initPromise = initWasm();
+    }
+    await initPromise;
+
+    self.postMessage({ type: "files-loaded" });
+    return;
+  }
+
+  // Handle LSP JSON-RPC messages from vscode-languageclient/browser
+  const jsonMessage = typeof data === "string" ? data : JSON.stringify(data);
+
+  // Lazily initialize WASM on first LSP message
+  if (!initPromise) {
+    initPromise = initWasm();
+  }
+
+  const ready = await initPromise;
+  if (!ready) {
+    try {
+      const msg = JSON.parse(jsonMessage);
+      if (msg.id !== undefined) {
+        self.postMessage(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: msg.id,
+            error: {
+              code: -32603,
+              message: "WASM module failed to initialize",
+            },
+          }),
+        );
       }
-      try {
-        const response = processMessage(message);
-        self.postMessage({ type: "response", id, message: response });
-      } catch (error) {
-        self.postMessage({ type: "error", id, error: String(error) });
-      }
-      break;
+    } catch {
+      // unparseable
     }
-    case "shutdown": {
-      if (wasmModule) {
-        wasmModule.lsp_shutdown();
-      }
-      self.postMessage({ type: "shutdown-result" });
-      break;
-    }
-    case "callback-response": {
-      // Handle async callback responses from the main thread
-      // This is used for file reads, HTTP fetches, etc.
-      break;
-    }
+    return;
+  }
+
+  const response = processJsonRpc(jsonMessage);
+  if (response) {
+    self.postMessage(response);
   }
 };

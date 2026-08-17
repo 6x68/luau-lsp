@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Added WASM build support for embedding the language server in web environments and platforms without native binaries. The extension automatically falls back to WASM when a native binary is not available for the current platform.
+- Added web extension support: the language server now runs via WASM in VSCode for the Web.
 
 ### Fixed
 
