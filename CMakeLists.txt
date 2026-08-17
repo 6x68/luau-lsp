@@ -297,7 +297,7 @@ target_include_directories(Luau.LanguageServer.Test SYSTEM PRIVATE ${EXTERN_INCL
 target_link_libraries(Luau.LanguageServer.Test PRIVATE Luau.Ast Luau.Analysis Luau.LanguageServer)
 
 if(LSP_BUILD_WASM)
-    set(LUAU_WASM_OPTIONS -fexceptions -pthread)
+    set(LUAU_WASM_OPTIONS -fexceptions -pthread -Wno-unused-template)
     list(APPEND LUAU_LSP_OPTIONS ${LUAU_WASM_OPTIONS})
 
     target_compile_features(Luau.LanguageServer.WASM PUBLIC cxx_std_17)

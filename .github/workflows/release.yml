@@ -110,7 +110,7 @@ jobs:
 
       - name: Setup Emscripten
         if: ${{ matrix.build-wasm }}
-        uses: mymindstorm/setup-emsdk@v14
+        uses: emscripten-core/setup-emsdk@v16
         with:
           version: latest
 
