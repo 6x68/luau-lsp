@@ -20,10 +20,14 @@ function normalizePath(p: string): string {
 // ---- JS callback implementations (plain functions, no closures for addFunction) ----
 
 function jsReadFile(pathPtr: number): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const path = wasmModule.UTF8ToString(pathPtr);
   const content = fileCache.get(normalizePath(path));
-  if (content === undefined) return 0;
+  if (content === undefined) {
+    return 0;
+  }
   const len = content.length * 3 + 1;
   const ptr = wasmModule._malloc(len);
   wasmModule.stringToUTF8(content, ptr, len);
@@ -31,38 +35,54 @@ function jsReadFile(pathPtr: number): number {
 }
 
 function jsFileExists(pathPtr: number): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const path = wasmModule.UTF8ToString(pathPtr);
   return fileCache.has(normalizePath(path)) ? 1 : 0;
 }
 
 function jsIsFile(pathPtr: number): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const path = wasmModule.UTF8ToString(pathPtr);
   // A path is a file if it's in the cache and doesn't end with /
   const normalized = normalizePath(path);
-  if (fileCache.has(normalized)) return 1;
+  if (fileCache.has(normalized)) {
+    return 1;
+  }
   // Also check if any cached file starts with this path (it's a directory prefix)
   for (const key of fileCache.keys()) {
-    if (key.startsWith(normalized + "/")) return 0;
+    if (key.startsWith(normalized + "/")) {
+      return 0;
+    }
   }
   return 0;
 }
 
 function jsIsDirectory(pathPtr: number): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const path = wasmModule.UTF8ToString(pathPtr);
   const normalized = normalizePath(path);
-  if (normalized === workspaceRoot || normalized === "") return 1;
+  if (normalized === workspaceRoot || normalized === "") {
+    return 1;
+  }
   // A path is a directory if any cached file starts with it
   for (const key of fileCache.keys()) {
-    if (key.startsWith(normalized + "/")) return 1;
+    if (key.startsWith(normalized + "/")) {
+      return 1;
+    }
   }
   return 0;
 }
 
 function jsDirList(pathPtr: number): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const dirPath = wasmModule.UTF8ToString(pathPtr);
   const normalized = normalizePath(dirPath);
   const prefix = normalized === "" ? "" : normalized + "/";
@@ -72,11 +92,15 @@ function jsDirList(pathPtr: number): number {
     if (key.startsWith(prefix)) {
       const rest = key.slice(prefix.length);
       const firstSegment = rest.split("/")[0];
-      if (firstSegment) entries.add(firstSegment);
+      if (firstSegment) {
+        entries.add(firstSegment);
+      }
     }
   }
 
-  if (entries.size === 0) return 0;
+  if (entries.size === 0) {
+    return 0;
+  }
 
   const result = Array.from(entries).join("\n");
   const len = result.length * 3 + 1;
@@ -86,7 +110,9 @@ function jsDirList(pathPtr: number): number {
 }
 
 function jsGetCurrentDirectory(): number {
-  if (!wasmModule) return 0;
+  if (!wasmModule) {
+    return 0;
+  }
   const len = workspaceRoot.length * 3 + 1;
   const ptr = wasmModule._malloc(len);
   wasmModule.stringToUTF8(workspaceRoot, ptr, len);
