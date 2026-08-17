@@ -313,7 +313,6 @@ if(LSP_BUILD_WASM)
     target_link_options(Luau.LanguageServer.WASM PRIVATE
         --no-entry
         -sMODULARIZE=1
-        -sEXPORT_ES6=1
         -sEXPORTED_FUNCTIONS=["_lsp_init","_lsp_process_message","_lsp_push_message","_lsp_get_response","_lsp_shutdown","_lsp_register_callbacks","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["ccall","cwrap","addFunction","removeFunction","UTF8ToString","stringToUTF8"]
         -sALLOW_MEMORY_GROWTH=1
