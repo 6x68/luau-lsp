@@ -267,8 +267,8 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
   client = new LanguageClient(
     "luau",
     "Luau Language Server (WASM)",
-    serverOptions,
     clientOptions,
+    serverOptions,
   );
 
   // Register commands

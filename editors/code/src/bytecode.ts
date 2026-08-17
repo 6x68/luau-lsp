@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import * as vscode from "vscode";
 import {
-  LanguageClient,
+  BaseLanguageClient,
   RequestType,
   TextDocumentIdentifier,
-} from "vscode-languageclient/node";
+} from "vscode-languageclient";
 
 export const BYTECODE_SCHEME = "luau-bytecode";
 export const COMPILER_REMARKS_SCHEME = "luau-remarks";
@@ -145,7 +145,7 @@ const activeLuauEditor = () => {
 
 const getBytecodeInfo = (
   context: vscode.ExtensionContext,
-  client: LanguageClient,
+  client: BaseLanguageClient,
   command: string,
   scheme: string,
   fileName: string,
@@ -233,7 +233,7 @@ const getBytecodeInfo = (
 
 export const registerComputeBytecode = (
   context: vscode.ExtensionContext,
-  client: LanguageClient,
+  client: BaseLanguageClient,
 ): vscode.Disposable[] => {
   return getBytecodeInfo(
     context,
@@ -247,7 +247,7 @@ export const registerComputeBytecode = (
 
 export const registerComputeCompilerRemarks = (
   context: vscode.ExtensionContext,
-  client: LanguageClient,
+  client: BaseLanguageClient,
 ): vscode.Disposable[] => {
   return getBytecodeInfo(
     context,
@@ -261,7 +261,7 @@ export const registerComputeCompilerRemarks = (
 
 export const registerComputeCodeGen = (
   context: vscode.ExtensionContext,
-  client: LanguageClient,
+  client: BaseLanguageClient,
 ): vscode.Disposable[] => {
   return getBytecodeInfo(
     context,

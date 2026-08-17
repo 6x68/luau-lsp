@@ -104,7 +104,7 @@ function createWasmServerOptions(
   const wasmPath = vscode.Uri.joinPath(
     context.extensionUri,
     "bin",
-    "server.js",
+    "wasm-node-server.js",
   );
 
   const run: Executable = {
