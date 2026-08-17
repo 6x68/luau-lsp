@@ -38,17 +38,17 @@ const nodeCtx = await esbuild.context({
   ],
 });
 
-// Browser build (web VSCode)
+// Browser build (web VSCode) - extension entry point
 const browserCtx = await esbuild.context({
   entryPoints: ["src/extension.browser.ts"],
   bundle: true,
-  format: "esm",
+  format: "cjs",
   minify: production,
   sourcemap: !production,
   sourcesContent: false,
   platform: "browser",
-  outfile: "dist/extension.browser.mjs",
-  external: ["vscode", "vscode-languageclient", "vscode-languageclient/*"],
+  outfile: "dist/extension.browser.js",
+  external: ["vscode"],
   logLevel: "warning",
   define: {
     "process.env": "{}",
@@ -58,7 +58,6 @@ const browserCtx = await esbuild.context({
     {
       name: "external-wasm-module",
       setup(build) {
-        // Mark the Emscripten WASM module as external - it's a build artifact
         build.onResolve({ filter: /\.\.\/bin\/server/ }, (args) => ({
           path: args.path,
           external: true,
@@ -87,12 +86,44 @@ const browserCtx = await esbuild.context({
   ],
 });
 
+// Browser build - WASM worker (separate entry, runs in a Web Worker)
+const workerCtx = await esbuild.context({
+  entryPoints: ["src/wasmWorker.ts"],
+  bundle: true,
+  format: "iife",
+  minify: production,
+  sourcemap: !production,
+  sourcesContent: false,
+  platform: "browser",
+  outfile: "dist/wasmWorker.js",
+  external: [],
+  logLevel: "warning",
+  define: {
+    "process.env": "{}",
+    global: "globalThis",
+  },
+  plugins: [
+    {
+      name: "external-wasm-module-worker",
+      setup(build) {
+        build.onResolve({ filter: /\.\.\/bin\/server/ }, (args) => ({
+          path: args.path,
+          external: true,
+        }));
+      },
+    },
+  ],
+});
+
 if (watch) {
   await nodeCtx.watch();
   await browserCtx.watch();
+  await workerCtx.watch();
 } else {
   await nodeCtx.rebuild();
   await nodeCtx.dispose();
   await browserCtx.rebuild();
   await browserCtx.dispose();
+  await workerCtx.rebuild();
+  await workerCtx.dispose();
 }
