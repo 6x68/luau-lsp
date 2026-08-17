@@ -349,6 +349,8 @@ bool isDirectory(const std::string& path)
 #endif
 }
 
+#endif // !__EMSCRIPTEN__
+
 // Returns the normal/canonical form of a path (e.g. "../subfolder/../module.luau" -> "../module.luau")
 std::string normalizePath(std::string_view path)
 {
