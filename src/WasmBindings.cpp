@@ -109,11 +109,22 @@ extern "C"
             return dupString("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"" + std::string(e.what()) + "\"},\"id\":null}");
         }
 
-        std::string response = s_transport->getAndClearResponse();
-        if (response.empty())
+        // Drain all queued responses (notifications + final response)
+        std::string combined;
+        while (true)
+        {
+            std::string response = s_transport->getAndClearResponse();
+            if (response.empty())
+                break;
+            if (!combined.empty())
+                combined += "\n";
+            combined += response;
+        }
+
+        if (combined.empty())
             return nullptr;
 
-        return dupString(response);
+        return dupString(combined);
     }
 
     EMSCRIPTEN_KEEPALIVE void lsp_push_message(const char* json_message)

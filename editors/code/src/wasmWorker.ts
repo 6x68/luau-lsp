@@ -182,7 +182,7 @@ async function initWasm(): Promise<boolean> {
     wasmModule = await Module();
 
     registerCallbacks();
-    wasmModule.lsp_init();
+    wasmModule._lsp_init();
 
     return true;
   } catch (error) {
@@ -196,7 +196,7 @@ async function initWasm(): Promise<boolean> {
 function processJsonRpc(jsonMessage: string): string | null {
   const msgPtr = wasmModule._malloc(jsonMessage.length * 3 + 1);
   wasmModule.stringToUTF8(jsonMessage, msgPtr, jsonMessage.length * 3 + 1);
-  const responsePtr = wasmModule.lsp_process_message(msgPtr);
+  const responsePtr = wasmModule._lsp_process_message(msgPtr);
 
   let response: string | null = null;
   if (responsePtr !== 0) {
@@ -242,6 +242,7 @@ self.onmessage = async (event: MessageEvent) => {
 
   // Handle LSP JSON-RPC messages from vscode-languageclient/browser
   const jsonMessage = typeof data === "string" ? data : JSON.stringify(data);
+  console.log("[WASM Worker] Received:", jsonMessage.substring(0, 200));
 
   // Lazily initialize WASM on first LSP message
   if (!initPromise) {
@@ -253,16 +254,16 @@ self.onmessage = async (event: MessageEvent) => {
     try {
       const msg = JSON.parse(jsonMessage);
       if (msg.id !== undefined) {
-        self.postMessage(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: msg.id,
-            error: {
-              code: -32603,
-              message: "WASM module failed to initialize",
-            },
-          }),
-        );
+        const errResp = JSON.stringify({
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: {
+            code: -32603,
+            message: "WASM module failed to initialize",
+          },
+        });
+        console.log("[WASM Worker] Sending error:", errResp);
+        self.postMessage(errResp);
       }
     } catch {
       // unparseable
@@ -272,6 +273,12 @@ self.onmessage = async (event: MessageEvent) => {
 
   const response = processJsonRpc(jsonMessage);
   if (response) {
-    self.postMessage(response);
+    const messages = response.split("\n");
+    for (const msg of messages) {
+      if (msg.trim()) {
+        console.log("[WASM Worker] Sending:", msg.substring(0, 200));
+        self.postMessage(msg);
+      }
+    }
   }
 };

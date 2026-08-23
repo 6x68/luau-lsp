@@ -3,18 +3,19 @@
 #include "Transport.hpp"
 #include <string>
 #include <mutex>
+#include <queue>
 
 class WasmTransport : public Transport
 {
 private:
     mutable std::mutex responseMutex;
-    std::string lastResponse;
+    std::queue<std::string> responses;
 
 public:
     void send(const std::string& data) override
     {
         std::lock_guard guard(responseMutex);
-        lastResponse = data;
+        responses.push(data);
     }
 
     void read(char* buffer, unsigned int length) override
@@ -29,8 +30,10 @@ public:
     std::string getAndClearResponse()
     {
         std::lock_guard guard(responseMutex);
-        std::string result = std::move(lastResponse);
-        lastResponse.clear();
+        if (responses.empty())
+            return {};
+        std::string result = std::move(responses.front());
+        responses.pop();
         return result;
     }
 };
